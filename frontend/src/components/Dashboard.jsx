@@ -81,7 +81,7 @@ const Dashboard = () => {
           {/* Header with Toggle Button and Dark/Light Mode */}
           <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm px-8 py-4 flex justify-between items-center`}>
             <div className="flex items-center gap-4">
-              {/* Sidebar Toggle Button - Ye sidebar band/khulne ke liye hai */}
+              {/* Sidebar Toggle Button */}
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className={`p-2 rounded-lg transition ${darkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-100 text-gray-800'}`}
@@ -101,7 +101,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {/* Dark/Light Mode Toggle Button - Ye theme change karne ke liye hai */}
+              {/* Dark/Light Mode Toggle Button */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-2 rounded-lg transition ${
@@ -121,12 +121,40 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Content */}
+          {/* Content - Yahan sab components ko props pass kiye hain */}
           <div className={`flex-1 overflow-y-auto p-8 ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-            {activeMenu === 'inventory' && <Inventory products={products} setProducts={setProducts} darkMode={darkMode} />}
-            {activeMenu === 'finance' && <Finance products={products} expenses={expenses} darkMode={darkMode} />}
-            {activeMenu === 'billing' && <Billing services={services} invoices={invoices} setInvoices={setInvoices} cart={cart} setCart={setCart} darkMode={darkMode} />}
-            {activeMenu === 'record' && <Records invoices={invoices} darkMode={darkMode} />}
+            {activeMenu === 'inventory' && (
+              <Inventory 
+                products={products} 
+                setProducts={setProducts} 
+                darkMode={darkMode} 
+              />
+            )}
+            {activeMenu === 'finance' && (
+              <Finance 
+                products={products} 
+                expenses={expenses} 
+                darkMode={darkMode} 
+              />
+            )}
+            {activeMenu === 'billing' && (
+              <Billing 
+                services={services} 
+                invoices={invoices} 
+                setInvoices={setInvoices} 
+                cart={cart} 
+                setCart={setCart} 
+                products={products}
+                setProducts={setProducts}  // ← YEH LINE ADD KARO (IMPORTANT)
+                darkMode={darkMode} 
+              />
+            )}
+            {activeMenu === 'record' && (
+              <Records 
+                invoices={invoices} 
+                darkMode={darkMode} 
+              />
+            )}
           </div>
         </div>
       </div>

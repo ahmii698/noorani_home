@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-const Inventory = ({ products, setProducts }) => {
+const Inventory = ({ products, darkMode }) => {
   const inventoryStats = products.reduce((acc, product) => {
     acc.totalPurchase += product.purchasePrice * product.quantity;
     acc.totalSelling += product.sellingPrice * product.quantity;
@@ -25,7 +25,7 @@ const Inventory = ({ products, setProducts }) => {
     const doc = new jsPDF('landscape');
     doc.text(title, 14, 10);
     doc.autoTable({
-      head: [['Product', 'Purchase Price', 'Selling Price', 'Quantity', 'Purchase Total', 'Selling Total', 'Profit']],
+      head: [['Product', 'Purchase Price', 'Selling Price', 'Stock', 'Purchase Total', 'Selling Total', 'Profit']],
       body: data.map(p => [
         p.name,
         `Rs. ${p.purchasePrice.toLocaleString()}`,
@@ -49,7 +49,7 @@ const Inventory = ({ products, setProducts }) => {
           <p className="text-3xl font-bold mt-2">Rs. {inventoryStats.totalPurchase.toLocaleString()}</p>
         </div>
         <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
-          <p className="text-sm opacity-90">Total Selling</p>
+          <p className="text-sm opacity-90">Total Selling Value</p>
           <p className="text-3xl font-bold mt-2">Rs. {inventoryStats.totalSelling.toLocaleString()}</p>
         </div>
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
@@ -58,9 +58,9 @@ const Inventory = ({ products, setProducts }) => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-800">Products Inventory</h3>
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg overflow-hidden`}>
+        <div className={`px-6 py-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
+          <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Products Inventory</h3>
           <div className="flex gap-3">
             <button onClick={() => exportToExcel(products, 'Inventory_Report')} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm">📊 Excel</button>
             <button onClick={() => exportToPDF(products, 'Inventory_Report')} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">📄 PDF</button>
@@ -68,26 +68,32 @@ const Inventory = ({ products, setProducts }) => {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Purchase</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Selling</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Purchase Total</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Selling Total</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profit</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Product</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Purchase Price</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Selling Price</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Stock</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Purchase Total</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Selling Total</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Profit</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
               {products.map(product => (
-                <tr key={product.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium">{product.name}</td>
-                  <td className="px-6 py-4">Rs. {product.purchasePrice.toLocaleString()}</td>
-                  <td className="px-6 py-4">Rs. {product.sellingPrice.toLocaleString()}</td>
-                  <td className="px-6 py-4">{product.quantity}</td>
-                  <td className="px-6 py-4">Rs. {(product.purchasePrice * product.quantity).toLocaleString()}</td>
-                  <td className="px-6 py-4">Rs. {(product.sellingPrice * product.quantity).toLocaleString()}</td>
+                <tr key={product.id} className={darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                  <td className={`px-6 py-4 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{product.name}</td>
+                  <td className={darkMode ? 'text-gray-300' : ''}>Rs. {product.purchasePrice.toLocaleString()}</td>
+                  <td className={darkMode ? 'text-gray-300' : ''}>Rs. {product.sellingPrice.toLocaleString()}</td>
+                  <td className="px-6 py-4">
+                    <span className={`font-semibold ${product.quantity < 5 && product.quantity > 0 ? 'text-yellow-500' : product.quantity === 0 ? 'text-red-500' : darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {product.quantity}
+                      {product.quantity < 5 && product.quantity > 0 && ' ⚠️ Low'}
+                      {product.quantity === 0 && ' ❌ Out'}
+                    </span>
+                  </td>
+                  <td className={darkMode ? 'text-gray-300' : ''}>Rs. {(product.purchasePrice * product.quantity).toLocaleString()}</td>
+                  <td className={darkMode ? 'text-gray-300' : ''}>Rs. {(product.sellingPrice * product.quantity).toLocaleString()}</td>
                   <td className="px-6 py-4 text-green-600 font-semibold">
                     Rs. {((product.sellingPrice - product.purchasePrice) * product.quantity).toLocaleString()}
                   </td>
