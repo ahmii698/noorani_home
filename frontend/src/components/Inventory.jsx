@@ -8,6 +8,7 @@ import 'jspdf-autotable';
 const Inventory = ({ products, darkMode, onAddProduct, onUpdateProduct }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     purchasePrice: '',
@@ -40,6 +41,11 @@ const Inventory = ({ products, darkMode, onAddProduct, onUpdateProduct }) => {
     }
     return acc;
   }, { totalPurchase: 0, totalSelling: 0, totalProfit: 0 });
+
+  // Filter products based on search term
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const exportToExcel = (data, filename) => {
     const exportData = data.map(p => ({
@@ -172,7 +178,6 @@ const Inventory = ({ products, darkMode, onAddProduct, onUpdateProduct }) => {
   };
 
   const saveInlineEdit = (productId, field) => {
-    // Handle different field types
     let newValue;
     if (field === 'name') {
       newValue = editingCell.value.trim();
@@ -223,7 +228,6 @@ const Inventory = ({ products, darkMode, onAddProduct, onUpdateProduct }) => {
     }
   };
 
-  // Format price for display
   const formatPrice = (price) => {
     return `Rs. ${price.toLocaleString()}`;
   };
@@ -251,23 +255,56 @@ const Inventory = ({ products, darkMode, onAddProduct, onUpdateProduct }) => {
 
       {/* Products Table */}
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg overflow-hidden`}>
-        <div className={`px-6 py-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
-          <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Products Inventory</h3>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition flex items-center gap-1"
-            >
-              ➕ Add Product
-            </button>
-            <button onClick={() => exportToExcel(products, 'Inventory_Report')} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 transition">
-              📊 Excel
-            </button>
-            <button onClick={() => exportToPDF(products, 'Inventory_Report')} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition">
-              📄 PDF
-            </button>
+        <div className={`px-6 py-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Products Inventory</h3>
+            <div className="flex gap-3">
+              {/* Search Bar */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="🔍 Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={`px-4 py-2 pl-10 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                  style={{ width: '250px' }}
+                />
+                <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition flex items-center gap-1"
+              >
+                ➕ Add Product
+              </button>
+              <button onClick={() => exportToExcel(filteredProducts, 'Inventory_Report')} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 transition">
+                📊 Excel
+              </button>
+              <button onClick={() => exportToPDF(filteredProducts, 'Inventory_Report')} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition">
+                📄 PDF
+              </button>
+            </div>
           </div>
+          
+          {/* Search Results Info */}
+          {searchTerm && (
+            <div className="mt-3 text-sm text-gray-500">
+              Found {filteredProducts.length} product(s) for "{searchTerm}"
+            </div>
+          )}
         </div>
+        
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
@@ -290,126 +327,134 @@ const Inventory = ({ products, darkMode, onAddProduct, onUpdateProduct }) => {
               </tr>
             </thead>
             <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-              {products.map(product => (
-                <tr key={product.id} className={darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                  
-                  {/* Product Name Cell - Editable */}
-                  <td className="px-6 py-4">
-                    {editingCell.productId === product.id && editingCell.field === 'name' ? (
-                      <input
-                        type="text"
-                        value={editingCell.value}
-                        onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
-                        onBlur={() => saveInlineEdit(product.id, 'name')}
-                        onKeyDown={(e) => handleKeyPress(e, product.id, 'name')}
-                        className={`w-full px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
-                        autoFocus
-                      />
-                    ) : (
-                      <div 
-                        onDoubleClick={() => startInlineEdit(product.id, 'name', product.name)}
-                        className={`cursor-pointer font-medium ${darkMode ? 'text-white' : 'text-gray-900'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
-                        title="Double-click to edit product name"
-                      >
-                        {product.name}
-                      </div>
-                    )}
+              {filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                    {searchTerm ? `No products found matching "${searchTerm}"` : 'No products added yet. Click "Add Product" to get started!'}
                   </td>
-                  
-                  {/* Purchase Price Cell - Editable */}
-                  <td className="px-6 py-4">
-                    {editingCell.productId === product.id && editingCell.field === 'purchasePrice' ? (
-                      <input
-                        type="number"
-                        value={editingCell.value}
-                        onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
-                        onBlur={() => saveInlineEdit(product.id, 'purchasePrice')}
-                        onKeyDown={(e) => handleKeyPress(e, product.id, 'purchasePrice')}
-                        className={`w-32 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
-                        autoFocus
-                        step="0.01"
-                        min="0"
-                      />
-                    ) : (
-                      <div 
-                        onDoubleClick={() => startInlineEdit(product.id, 'purchasePrice', product.purchasePrice)}
-                        className={`cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
-                        title="Double-click to edit purchase price"
+                </tr>
+              ) : (
+                filteredProducts.map(product => (
+                  <tr key={product.id} className={darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
+                    
+                    {/* Product Name Cell - Editable */}
+                    <td className="px-6 py-4">
+                      {editingCell.productId === product.id && editingCell.field === 'name' ? (
+                        <input
+                          type="text"
+                          value={editingCell.value}
+                          onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                          onBlur={() => saveInlineEdit(product.id, 'name')}
+                          onKeyDown={(e) => handleKeyPress(e, product.id, 'name')}
+                          className={`w-full px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                          autoFocus
+                        />
+                      ) : (
+                        <div 
+                          onDoubleClick={() => startInlineEdit(product.id, 'name', product.name)}
+                          className={`cursor-pointer font-medium ${darkMode ? 'text-white' : 'text-gray-900'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
+                          title="Double-click to edit product name"
+                        >
+                          {product.name}
+                        </div>
+                      )}
+                    </td>
+                    
+                    {/* Purchase Price Cell - Editable */}
+                    <td className="px-6 py-4">
+                      {editingCell.productId === product.id && editingCell.field === 'purchasePrice' ? (
+                        <input
+                          type="number"
+                          value={editingCell.value}
+                          onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                          onBlur={() => saveInlineEdit(product.id, 'purchasePrice')}
+                          onKeyDown={(e) => handleKeyPress(e, product.id, 'purchasePrice')}
+                          className={`w-32 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                          autoFocus
+                          step="0.01"
+                          min="0"
+                        />
+                      ) : (
+                        <div 
+                          onDoubleClick={() => startInlineEdit(product.id, 'purchasePrice', product.purchasePrice)}
+                          className={`cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
+                          title="Double-click to edit purchase price"
+                        >
+                          {formatPrice(product.purchasePrice)}
+                        </div>
+                      )}
+                    </td>
+                    
+                    {/* Selling Price Cell - Editable */}
+                    <td className="px-6 py-4">
+                      {editingCell.productId === product.id && editingCell.field === 'sellingPrice' ? (
+                        <input
+                          type="number"
+                          value={editingCell.value}
+                          onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                          onBlur={() => saveInlineEdit(product.id, 'sellingPrice')}
+                          onKeyDown={(e) => handleKeyPress(e, product.id, 'sellingPrice')}
+                          className={`w-32 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                          autoFocus
+                          step="0.01"
+                          min="0"
+                        />
+                      ) : (
+                        <div 
+                          onDoubleClick={() => startInlineEdit(product.id, 'sellingPrice', product.sellingPrice)}
+                          className={`cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
+                          title="Double-click to edit selling price"
+                        >
+                          {formatPrice(product.sellingPrice)}
+                        </div>
+                      )}
+                    </td>
+                    
+                    {/* Stock Cell - Editable */}
+                    <td className="px-6 py-4">
+                      {editingCell.productId === product.id && editingCell.field === 'quantity' ? (
+                        <input
+                          type="number"
+                          value={editingCell.value}
+                          onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                          onBlur={() => saveInlineEdit(product.id, 'quantity')}
+                          onKeyDown={(e) => handleKeyPress(e, product.id, 'quantity')}
+                          className={`w-24 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                          autoFocus
+                          min="0"
+                        />
+                      ) : (
+                        <div 
+                          onDoubleClick={() => startInlineEdit(product.id, 'quantity', product.quantity)}
+                          className={`cursor-pointer font-semibold ${
+                            product.quantity < 5 && product.quantity > 0 ? 'text-yellow-500' : 
+                            product.quantity === 0 ? 'text-red-500' : 
+                            darkMode ? 'text-white' : 'text-gray-900'
+                          } hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
+                          title="Double-click to edit stock"
+                        >
+                          {product.quantity}
+                          {product.quantity < 5 && product.quantity > 0 && ' ⚠️ Low'}
+                          {product.quantity === 0 && ' ❌ Out'}
+                        </div>
+                      )}
+                    </td>
+                    
+                    {/* Actions */}
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => handleEditProduct(product)}
+                        className="px-3 py-1 bg-yellow-500 text-white rounded-lg text-sm hover:bg-yellow-600 transition flex items-center gap-1"
+                        title="Edit full product details"
                       >
-                        {formatPrice(product.purchasePrice)}
-                      </div>
-                    )}
-                   </td>
-                  
-                  {/* Selling Price Cell - Editable */}
-                  <td className="px-6 py-4">
-                    {editingCell.productId === product.id && editingCell.field === 'sellingPrice' ? (
-                      <input
-                        type="number"
-                        value={editingCell.value}
-                        onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
-                        onBlur={() => saveInlineEdit(product.id, 'sellingPrice')}
-                        onKeyDown={(e) => handleKeyPress(e, product.id, 'sellingPrice')}
-                        className={`w-32 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
-                        autoFocus
-                        step="0.01"
-                        min="0"
-                      />
-                    ) : (
-                      <div 
-                        onDoubleClick={() => startInlineEdit(product.id, 'sellingPrice', product.sellingPrice)}
-                        className={`cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
-                        title="Double-click to edit selling price"
-                      >
-                        {formatPrice(product.sellingPrice)}
-                      </div>
-                    )}
-                   </td>
-                  
-                  {/* Stock Cell - Editable */}
-                  <td className="px-6 py-4">
-                    {editingCell.productId === product.id && editingCell.field === 'quantity' ? (
-                      <input
-                        type="number"
-                        value={editingCell.value}
-                        onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
-                        onBlur={() => saveInlineEdit(product.id, 'quantity')}
-                        onKeyDown={(e) => handleKeyPress(e, product.id, 'quantity')}
-                        className={`w-24 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
-                        autoFocus
-                        min="0"
-                      />
-                    ) : (
-                      <div 
-                        onDoubleClick={() => startInlineEdit(product.id, 'quantity', product.quantity)}
-                        className={`cursor-pointer font-semibold ${
-                          product.quantity < 5 && product.quantity > 0 ? 'text-yellow-500' : 
-                          product.quantity === 0 ? 'text-red-500' : 
-                          darkMode ? 'text-white' : 'text-gray-900'
-                        } hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
-                        title="Double-click to edit stock"
-                      >
-                        {product.quantity}
-                        {product.quantity < 5 && product.quantity > 0 && ' ⚠️ Low'}
-                        {product.quantity === 0 && ' ❌ Out'}
-                      </div>
-                    )}
-                   </td>
-                  
-                  {/* Actions */}
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => handleEditProduct(product)}
-                      className="px-3 py-1 bg-yellow-500 text-white rounded-lg text-sm hover:bg-yellow-600 transition flex items-center gap-1"
-                      title="Edit full product details"
-                    >
-                      ✏️ Edit
-                    </button>
-                   </td>
-                 </tr>
-              ))}
+                        ✏️ Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
-           </table>
+          </table>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 // src/components/Billing.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -17,10 +17,15 @@ const Billing = ({ services, invoices, setInvoices, cart, setCart, products, set
     date: new Date().toISOString().split('T')[0]
   });
   
+  // Customer History State
+  const [customerHistory, setCustomerHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  
   // Payment State
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
+  // Group services by category
   const groupedServices = services.reduce((acc, service) => {
     if (!acc[service.category]) acc[service.category] = [];
     acc[service.category].push(service);
@@ -32,6 +37,38 @@ const Billing = ({ services, invoices, setInvoices, cart, setCart, products, set
     const product = products.find(p => p.id === serviceId);
     return product ? product.quantity : 0;
   };
+
+  // Search customer history when phone number changes
+  useEffect(() => {
+    if (customerDetails.phone && customerDetails.phone.length >= 4) {
+      const history = invoices.filter(inv => 
+        inv.customer?.phone === customerDetails.phone
+      ).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+      
+      setCustomerHistory(history);
+      setShowHistory(history.length > 0);
+      
+      // Auto-fill name and car number if customer exists
+      if (history.length > 0) {
+        const lastInvoice = history[0];
+        if (lastInvoice.customer) {
+          if (!customerDetails.name) {
+            setCustomerDetails(prev => ({ ...prev, name: lastInvoice.customer.name || '' }));
+          }
+          if (!customerDetails.carNumber) {
+            setCustomerDetails(prev => ({ ...prev, carNumber: lastInvoice.customer.carNumber || '' }));
+          }
+          if (!customerDetails.carModel) {
+            setCustomerDetails(prev => ({ ...prev, carModel: lastInvoice.customer.carModel || '' }));
+          }
+          toast.success(`Welcome back ${lastInvoice.customer.name}!`, { duration: 2000 });
+        }
+      }
+    } else {
+      setShowHistory(false);
+      setCustomerHistory([]);
+    }
+  }, [customerDetails.phone, invoices]);
 
   const addToBill = (service) => {
     const currentStock = getProductStock(service.id);
@@ -265,7 +302,7 @@ const Billing = ({ services, invoices, setInvoices, cart, setCart, products, set
     
     // Save invoice with customer details and payment
     const newInvoice = {
-      id: invoices.length + 1,
+      id: Date.now(),
       invoiceNo: `INV-${Date.now()}`,
       date: customerDetails.date,
       customer: { ...customerDetails },
@@ -278,17 +315,11 @@ const Billing = ({ services, invoices, setInvoices, cart, setCart, products, set
     };
     setInvoices([...invoices, newInvoice]);
     
-    // Clear cart and customer details
+    // Clear cart only, keep customer details for next billing
     setCart([]);
-    setCustomerDetails({ 
-      name: '', 
-      phone: '', 
-      carNumber: '', 
-      carModel: '',
-      date: new Date().toISOString().split('T')[0]
-    });
     setPaymentAmount('');
     setPaymentMethod('cash');
+    
     toast.success(`Payment successful! ${isFullyPaid ? 'Bill fully paid' : 'Partial payment received'}`);
   };
 
@@ -300,7 +331,7 @@ const Billing = ({ services, invoices, setInvoices, cart, setCart, products, set
           <div className="flex justify-between items-center">
             <div>
               <h3 className="text-lg font-semibold text-white">Customer Details</h3>
-              <p className="text-xs text-cyan-100 mt-1">Enter customer information</p>
+              <p className="text-xs text-cyan-100 mt-1">Enter customer information - Phone number auto-searches history</p>
             </div>
             <div className="text-white text-right">
               <p className="text-xs opacity-80">Date</p>
@@ -317,13 +348,13 @@ const Billing = ({ services, invoices, setInvoices, cart, setCart, products, set
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                👤 Customer Name *
+                📞 Phone Number * (Type to search history)
               </label>
               <input
-                type="text"
-                value={customerDetails.name}
-                onChange={(e) => setCustomerDetails({...customerDetails, name: e.target.value})}
-                placeholder="Enter customer name"
+                type="tel"
+                value={customerDetails.phone}
+                onChange={(e) => setCustomerDetails({...customerDetails, phone: e.target.value, name: '', carNumber: '', carModel: ''})}
+                placeholder="Enter phone number"
                 className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition ${
                   darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
                 }`}
@@ -332,13 +363,13 @@ const Billing = ({ services, invoices, setInvoices, cart, setCart, products, set
             
             <div>
               <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                📞 Phone Number *
+                👤 Customer Name *
               </label>
               <input
-                type="tel"
-                value={customerDetails.phone}
-                onChange={(e) => setCustomerDetails({...customerDetails, phone: e.target.value})}
-                placeholder="Enter phone number"
+                type="text"
+                value={customerDetails.name}
+                onChange={(e) => setCustomerDetails({...customerDetails, name: e.target.value})}
+                placeholder="Enter customer name"
                 className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition ${
                   darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300'
                 }`}
@@ -375,6 +406,57 @@ const Billing = ({ services, invoices, setInvoices, cart, setCart, products, set
               />
             </div>
           </div>
+          
+          {/* Customer History Section */}
+          {showHistory && customerHistory.length > 0 && (
+            <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 rounded-xl">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-semibold text-purple-700 dark:text-purple-300">
+                  📜 Previous Visits ({customerHistory.length})
+                </h4>
+                <button 
+                  onClick={() => setShowHistory(false)}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Hide
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-purple-200 dark:border-purple-800">
+                      <th className="text-left py-2 px-2">Date</th>
+                      <th className="text-left py-2 px-2">Services</th>
+                      <th className="text-left py-2 px-2">Total</th>
+                      <th className="text-left py-2 px-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerHistory.map((inv, idx) => (
+                      <tr key={inv.id} className="border-b border-purple-100 dark:border-purple-800/50 hover:bg-purple-50 dark:hover:bg-purple-900/20">
+                        <td className="py-2 px-2 text-xs">{new Date(inv.date).toLocaleDateString()}</td>
+                        <td className="py-2 px-2 text-xs">
+                          {inv.items.map(i => i.name).slice(0, 2).join(', ')}
+                          {inv.items.length > 2 && ` +${inv.items.length - 2}`}
+                        </td>
+                        <td className="py-2 px-2 font-semibold text-green-600">Rs. {inv.total.toLocaleString()}</td>
+                        <td className="py-2 px-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${
+                            inv.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {customerHistory.length >= 10 && (
+                <p className="text-xs text-gray-500 mt-2 text-center">Showing last 10 visits</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
