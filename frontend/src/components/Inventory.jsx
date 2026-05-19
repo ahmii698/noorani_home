@@ -1,20 +1,55 @@
 // src/components/Inventory.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-const Inventory = ({ products, darkMode }) => {
-  const inventoryStats = products.reduce((acc, product) => {
-    acc.totalPurchase += product.purchasePrice * product.quantity;
-    acc.totalSelling += product.sellingPrice * product.quantity;
-    acc.totalProfit += (product.sellingPrice - product.purchasePrice) * product.quantity;
+const Inventory = ({ products, darkMode, onAddProduct, onUpdateProduct }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    purchasePrice: '',
+    sellingPrice: '',
+    quantity: ''
+  });
+  
+  // Inline editing states
+  const [editingCell, setEditingCell] = useState({ productId: null, field: null, value: '' });
+
+  // Function to get current week's start date (Monday)
+  const getStartOfWeek = () => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = (day === 0 ? 6 : day - 1);
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - diff);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+
+  // Calculate weekly stats based on products added this week
+  const weeklyStats = products.reduce((acc, product) => {
+    const isThisWeek = product.dateAdded ? new Date(product.dateAdded) >= getStartOfWeek() : true;
+    
+    if (isThisWeek) {
+      acc.totalPurchase += product.purchasePrice * product.quantity;
+      acc.totalSelling += product.sellingPrice * product.quantity;
+      acc.totalProfit += (product.sellingPrice - product.purchasePrice) * product.quantity;
+    }
     return acc;
   }, { totalPurchase: 0, totalSelling: 0, totalProfit: 0 });
 
   const exportToExcel = (data, filename) => {
-    const ws = XLSX.utils.json_to_sheet(data);
+    const exportData = data.map(p => ({
+      'Product': p.name,
+      'Purchase Price': `Rs. ${p.purchasePrice.toLocaleString()}`,
+      'Selling Price': `Rs. ${p.sellingPrice.toLocaleString()}`,
+      'Stock': p.quantity
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
     XLSX.writeFile(wb, `${filename}.xlsx`);
@@ -25,15 +60,12 @@ const Inventory = ({ products, darkMode }) => {
     const doc = new jsPDF('landscape');
     doc.text(title, 14, 10);
     doc.autoTable({
-      head: [['Product', 'Purchase Price', 'Selling Price', 'Stock', 'Purchase Total', 'Selling Total', 'Profit']],
+      head: [['Product', 'Purchase Price', 'Selling Price', 'Stock']],
       body: data.map(p => [
         p.name,
         `Rs. ${p.purchasePrice.toLocaleString()}`,
         `Rs. ${p.sellingPrice.toLocaleString()}`,
-        p.quantity,
-        `Rs. ${(p.purchasePrice * p.quantity).toLocaleString()}`,
-        `Rs. ${(p.sellingPrice * p.quantity).toLocaleString()}`,
-        `Rs. ${((p.sellingPrice - p.purchasePrice) * p.quantity).toLocaleString()}`
+        p.quantity
       ]),
       startY: 20,
     });
@@ -41,68 +73,465 @@ const Inventory = ({ products, darkMode }) => {
     toast.success('Exported to PDF');
   };
 
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.purchasePrice || !formData.sellingPrice || !formData.quantity) {
+      toast.error('Please fill all fields');
+      return;
+    }
+
+    const purchasePriceNum = parseFloat(formData.purchasePrice);
+    const sellingPriceNum = parseFloat(formData.sellingPrice);
+    const quantityNum = parseInt(formData.quantity);
+
+    if (isNaN(purchasePriceNum) || isNaN(sellingPriceNum) || isNaN(quantityNum)) {
+      toast.error('Please enter valid numbers');
+      return;
+    }
+
+    if (purchasePriceNum < 0 || sellingPriceNum < 0 || quantityNum < 0) {
+      toast.error('Values cannot be negative');
+      return;
+    }
+
+    const newProduct = {
+      id: Date.now(),
+      name: formData.name,
+      purchasePrice: purchasePriceNum,
+      sellingPrice: sellingPriceNum,
+      quantity: quantityNum,
+      dateAdded: new Date().toISOString()
+    };
+
+    onAddProduct(newProduct);
+    toast.success('Product added successfully!');
+    
+    setFormData({ name: '', purchasePrice: '', sellingPrice: '', quantity: '' });
+    setIsModalOpen(false);
+  };
+
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      purchasePrice: product.purchasePrice,
+      sellingPrice: product.sellingPrice,
+      quantity: product.quantity
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleUpdateSubmit = (e) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.purchasePrice || !formData.sellingPrice || !formData.quantity) {
+      toast.error('Please fill all fields');
+      return;
+    }
+
+    const purchasePriceNum = parseFloat(formData.purchasePrice);
+    const sellingPriceNum = parseFloat(formData.sellingPrice);
+    const quantityNum = parseInt(formData.quantity);
+
+    if (isNaN(purchasePriceNum) || isNaN(sellingPriceNum) || isNaN(quantityNum)) {
+      toast.error('Please enter valid numbers');
+      return;
+    }
+
+    const updatedProduct = {
+      ...editingProduct,
+      name: formData.name,
+      purchasePrice: purchasePriceNum,
+      sellingPrice: sellingPriceNum,
+      quantity: quantityNum
+    };
+
+    onUpdateProduct(updatedProduct);
+    toast.success('Product updated successfully!');
+    
+    setFormData({ name: '', purchasePrice: '', sellingPrice: '', quantity: '' });
+    setEditingProduct(null);
+    setIsModalOpen(false);
+  };
+
+  // Inline editing functions
+  const startInlineEdit = (productId, field, currentValue) => {
+    setEditingCell({
+      productId,
+      field,
+      value: currentValue
+    });
+  };
+
+  const saveInlineEdit = (productId, field) => {
+    // Handle different field types
+    let newValue;
+    if (field === 'name') {
+      newValue = editingCell.value.trim();
+      if (!newValue) {
+        toast.error('Product name cannot be empty');
+        setEditingCell({ productId: null, field: null, value: '' });
+        return;
+      }
+    } else if (field === 'quantity') {
+      newValue = parseInt(editingCell.value);
+      if (isNaN(newValue) || newValue < 0) {
+        toast.error('Please enter a valid positive number');
+        setEditingCell({ productId: null, field: null, value: '' });
+        return;
+      }
+    } else {
+      newValue = parseFloat(editingCell.value);
+      if (isNaN(newValue) || newValue < 0) {
+        toast.error('Please enter a valid positive number');
+        setEditingCell({ productId: null, field: null, value: '' });
+        return;
+      }
+    }
+
+    const productToUpdate = products.find(p => p.id === productId);
+    const updatedProduct = {
+      ...productToUpdate,
+      [field]: newValue
+    };
+    
+    onUpdateProduct(updatedProduct);
+    
+    let successMessage = '';
+    if (field === 'name') successMessage = 'Product name updated successfully!';
+    else if (field === 'quantity') successMessage = 'Stock updated successfully!';
+    else if (field === 'purchasePrice') successMessage = 'Purchase price updated successfully!';
+    else if (field === 'sellingPrice') successMessage = 'Selling price updated successfully!';
+    
+    toast.success(successMessage);
+    setEditingCell({ productId: null, field: null, value: '' });
+  };
+
+  const handleKeyPress = (e, productId, field) => {
+    if (e.key === 'Enter') {
+      saveInlineEdit(productId, field);
+    } else if (e.key === 'Escape') {
+      setEditingCell({ productId: null, field: null, value: '' });
+    }
+  };
+
+  // Format price for display
+  const formatPrice = (price) => {
+    return `Rs. ${price.toLocaleString()}`;
+  };
+
   return (
     <div className="space-y-6">
+      {/* Weekly Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
-          <p className="text-sm opacity-90">Total Purchase</p>
-          <p className="text-3xl font-bold mt-2">Rs. {inventoryStats.totalPurchase.toLocaleString()}</p>
+          <p className="text-sm opacity-90">Weekly Purchase Total</p>
+          <p className="text-3xl font-bold mt-2">Rs. {weeklyStats.totalPurchase.toLocaleString()}</p>
+          <p className="text-xs opacity-75 mt-2">This week's purchases</p>
         </div>
         <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
-          <p className="text-sm opacity-90">Total Selling Value</p>
-          <p className="text-3xl font-bold mt-2">Rs. {inventoryStats.totalSelling.toLocaleString()}</p>
+          <p className="text-sm opacity-90">Weekly Selling Value</p>
+          <p className="text-3xl font-bold mt-2">Rs. {weeklyStats.totalSelling.toLocaleString()}</p>
+          <p className="text-xs opacity-75 mt-2">This week's sales</p>
         </div>
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-          <p className="text-sm opacity-90">Total Profit</p>
-          <p className="text-3xl font-bold mt-2">Rs. {inventoryStats.totalProfit.toLocaleString()}</p>
+          <p className="text-sm opacity-90">Weekly Profit</p>
+          <p className="text-3xl font-bold mt-2">Rs. {weeklyStats.totalProfit.toLocaleString()}</p>
+          <p className="text-xs opacity-75 mt-2">This week's profit</p>
         </div>
       </div>
 
+      {/* Products Table */}
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-lg overflow-hidden`}>
         <div className={`px-6 py-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
           <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Products Inventory</h3>
           <div className="flex gap-3">
-            <button onClick={() => exportToExcel(products, 'Inventory_Report')} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm">📊 Excel</button>
-            <button onClick={() => exportToPDF(products, 'Inventory_Report')} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">📄 PDF</button>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition flex items-center gap-1"
+            >
+              ➕ Add Product
+            </button>
+            <button onClick={() => exportToExcel(products, 'Inventory_Report')} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 transition">
+              📊 Excel
+            </button>
+            <button onClick={() => exportToPDF(products, 'Inventory_Report')} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition">
+              📄 PDF
+            </button>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
               <tr>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Product</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Purchase Price</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Selling Price</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Stock</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Purchase Total</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Selling Total</th>
-                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase`}>Profit</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Product
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Purchase Price
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Selling Price
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Stock
+                </th>
+                <th className={`px-6 py-3 text-left text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase tracking-wider`}>
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
               {products.map(product => (
                 <tr key={product.id} className={darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}>
-                  <td className={`px-6 py-4 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{product.name}</td>
-                  <td className={darkMode ? 'text-gray-300' : ''}>Rs. {product.purchasePrice.toLocaleString()}</td>
-                  <td className={darkMode ? 'text-gray-300' : ''}>Rs. {product.sellingPrice.toLocaleString()}</td>
+                  
+                  {/* Product Name Cell - Editable */}
                   <td className="px-6 py-4">
-                    <span className={`font-semibold ${product.quantity < 5 && product.quantity > 0 ? 'text-yellow-500' : product.quantity === 0 ? 'text-red-500' : darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {product.quantity}
-                      {product.quantity < 5 && product.quantity > 0 && ' ⚠️ Low'}
-                      {product.quantity === 0 && ' ❌ Out'}
-                    </span>
+                    {editingCell.productId === product.id && editingCell.field === 'name' ? (
+                      <input
+                        type="text"
+                        value={editingCell.value}
+                        onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                        onBlur={() => saveInlineEdit(product.id, 'name')}
+                        onKeyDown={(e) => handleKeyPress(e, product.id, 'name')}
+                        className={`w-full px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                        autoFocus
+                      />
+                    ) : (
+                      <div 
+                        onDoubleClick={() => startInlineEdit(product.id, 'name', product.name)}
+                        className={`cursor-pointer font-medium ${darkMode ? 'text-white' : 'text-gray-900'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
+                        title="Double-click to edit product name"
+                      >
+                        {product.name}
+                      </div>
+                    )}
                   </td>
-                  <td className={darkMode ? 'text-gray-300' : ''}>Rs. {(product.purchasePrice * product.quantity).toLocaleString()}</td>
-                  <td className={darkMode ? 'text-gray-300' : ''}>Rs. {(product.sellingPrice * product.quantity).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-green-600 font-semibold">
-                    Rs. {((product.sellingPrice - product.purchasePrice) * product.quantity).toLocaleString()}
-                  </td>
-                </tr>
+                  
+                  {/* Purchase Price Cell - Editable */}
+                  <td className="px-6 py-4">
+                    {editingCell.productId === product.id && editingCell.field === 'purchasePrice' ? (
+                      <input
+                        type="number"
+                        value={editingCell.value}
+                        onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                        onBlur={() => saveInlineEdit(product.id, 'purchasePrice')}
+                        onKeyDown={(e) => handleKeyPress(e, product.id, 'purchasePrice')}
+                        className={`w-32 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                        autoFocus
+                        step="0.01"
+                        min="0"
+                      />
+                    ) : (
+                      <div 
+                        onDoubleClick={() => startInlineEdit(product.id, 'purchasePrice', product.purchasePrice)}
+                        className={`cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
+                        title="Double-click to edit purchase price"
+                      >
+                        {formatPrice(product.purchasePrice)}
+                      </div>
+                    )}
+                   </td>
+                  
+                  {/* Selling Price Cell - Editable */}
+                  <td className="px-6 py-4">
+                    {editingCell.productId === product.id && editingCell.field === 'sellingPrice' ? (
+                      <input
+                        type="number"
+                        value={editingCell.value}
+                        onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                        onBlur={() => saveInlineEdit(product.id, 'sellingPrice')}
+                        onKeyDown={(e) => handleKeyPress(e, product.id, 'sellingPrice')}
+                        className={`w-32 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                        autoFocus
+                        step="0.01"
+                        min="0"
+                      />
+                    ) : (
+                      <div 
+                        onDoubleClick={() => startInlineEdit(product.id, 'sellingPrice', product.sellingPrice)}
+                        className={`cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'} hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
+                        title="Double-click to edit selling price"
+                      >
+                        {formatPrice(product.sellingPrice)}
+                      </div>
+                    )}
+                   </td>
+                  
+                  {/* Stock Cell - Editable */}
+                  <td className="px-6 py-4">
+                    {editingCell.productId === product.id && editingCell.field === 'quantity' ? (
+                      <input
+                        type="number"
+                        value={editingCell.value}
+                        onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                        onBlur={() => saveInlineEdit(product.id, 'quantity')}
+                        onKeyDown={(e) => handleKeyPress(e, product.id, 'quantity')}
+                        className={`w-24 px-2 py-1 border rounded ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'}`}
+                        autoFocus
+                        min="0"
+                      />
+                    ) : (
+                      <div 
+                        onDoubleClick={() => startInlineEdit(product.id, 'quantity', product.quantity)}
+                        className={`cursor-pointer font-semibold ${
+                          product.quantity < 5 && product.quantity > 0 ? 'text-yellow-500' : 
+                          product.quantity === 0 ? 'text-red-500' : 
+                          darkMode ? 'text-white' : 'text-gray-900'
+                        } hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2 py-1 rounded transition`}
+                        title="Double-click to edit stock"
+                      >
+                        {product.quantity}
+                        {product.quantity < 5 && product.quantity > 0 && ' ⚠️ Low'}
+                        {product.quantity === 0 && ' ❌ Out'}
+                      </div>
+                    )}
+                   </td>
+                  
+                  {/* Actions */}
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => handleEditProduct(product)}
+                      className="px-3 py-1 bg-yellow-500 text-white rounded-lg text-sm hover:bg-yellow-600 transition flex items-center gap-1"
+                      title="Edit full product details"
+                    >
+                      ✏️ Edit
+                    </button>
+                   </td>
+                 </tr>
               ))}
             </tbody>
-          </table>
+           </table>
         </div>
       </div>
+
+      {/* Add/Edit Product Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto`}>
+            <div className={`px-6 py-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex justify-between items-center`}>
+              <h3 className="text-xl font-semibold">
+                {editingProduct ? 'Edit Product' : 'Add New Product'}
+              </h3>
+              <button 
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingProduct(null);
+                  setFormData({ name: '', purchasePrice: '', sellingPrice: '', quantity: '' });
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <form onSubmit={editingProduct ? handleUpdateSubmit : handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Product Name *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter product name"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Purchase Price * (Rs.)
+                </label>
+                <input
+                  type="number"
+                  name="purchasePrice"
+                  value={formData.purchasePrice}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter purchase price"
+                  min="0"
+                  step="0.01"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Selling Price * (Rs.)
+                </label>
+                <input
+                  type="number"
+                  name="sellingPrice"
+                  value={formData.sellingPrice}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter selling price"
+                  min="0"
+                  step="0.01"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Stock Quantity *
+                </label>
+                <input
+                  type="number"
+                  name="quantity"
+                  value={formData.quantity}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter stock quantity"
+                  min="0"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setEditingProduct(null);
+                    setFormData({ name: '', purchasePrice: '', sellingPrice: '', quantity: '' });
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-lg transition ${
+                    darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                >
+                  {editingProduct ? 'Update Product' : 'Add Product'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
